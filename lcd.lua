@@ -1,55 +1,58 @@
 do
     if(_G['i2c'] ~= nil) then
         print('HD44780 : I2C here. continue.')
-        
-        -- commands
-        local LCD_CLEARDISPLAY = 0x01
-        local LCD_RETURNHOME = 0x02
-        local LCD_ENTRYMODESET = 0x04
-        local LCD_DISPLAYCONTROL = 0x08
-        local LCD_CURSORSHIFT = 0x10
-        local LCD_FUNCTIONSET = 0x20
-        local LCD_SETCGRAMADDR = 0x40
-        local LCD_SETDDRAMADDR = 0x80
-        
-        -- flags for display entry mode
-        local LCD_ENTRYRIGHT = 0x00
-        local LCD_ENTRYLEFT = 0x02
-        local LCD_ENTRYSHIFTINCREMENT = 0x01
-        local LCD_ENTRYSHIFTDECREMENT = 0x00
-        
-        -- flags for display on/off control
-        local LCD_DISPLAYON = 0x04
-        local LCD_DISPLAYOFF = 0x00
-        local LCD_CURSORON = 0x02
-        local LCD_CURSOROFF = 0x00
-        local LCD_BLINKON = 0x01
-        local LCD_BLINKOFF = 0x00
-        
-        -- flags for display/cursor shift
-        local LCD_DISPLAYMOVE = 0x08
-        local LCD_CURSORMOVE = 0x00
-        local LCD_MOVERIGHT = 0x04
-        local LCD_MOVELEFT = 0x00
-        
-        -- flags for function set
-        local LCD_8BITMODE = 0x10
-        local LCD_4BITMODE = 0x00
-        local LCD_2LINE = 0x08
-        local LCD_1LINE = 0x00
-        local LCD_5x10DOTS = 0x04
-        local LCD_5x8DOTS = 0x00
-        
-        -- flags for backlight control
-        local LCD_BACKLIGHT = 0x08
-        local LCD_NOBACKLIGHT = 0x00
-        
-        local EN = 0x04  -- Enable bit
-        local RW = 0x02  -- Read/Write bit
-        local RS = 0x01  -- Register select bit
 
-        local COMMAND = 0
-        local DATA = 1
+        local constants = {
+             LCD_CLEARDISPLAY = 0x01,
+             LCD_RETURNHOME = 0x02,
+             LCD_ENTRYMODESET = 0x04,
+             LCD_DISPLAYCONTROL = 0x08,
+             LCD_CURSORSHIFT = 0x10,
+             LCD_FUNCTIONSET = 0x20,
+             LCD_SETCGRAMADDR = 0x40,
+             LCD_SETDDRAMADDR = 0x80,
+            
+            -- flags for display entry mode
+             LCD_ENTRYRIGHT = 0x00,
+             LCD_ENTRYLEFT = 0x02,
+             LCD_ENTRYSHIFTINCREMENT = 0x01,
+             LCD_ENTRYSHIFTDECREMENT = 0x00,
+            
+            -- flags for display on/off control
+             LCD_DISPLAYON = 0x04,
+             LCD_DISPLAYOFF = 0x00,
+             LCD_CURSORON = 0x02,
+             LCD_CURSOROFF = 0x00,
+             LCD_BLINKON = 0x01,
+             LCD_BLINKOFF = 0x00,
+            
+            -- flags for display/cursor shift
+             LCD_DISPLAYMOVE = 0x08,
+             LCD_CURSORMOVE = 0x00,
+             LCD_MOVERIGHT = 0x04,
+             LCD_MOVELEFT = 0x00,
+            
+            -- flags for function set
+             LCD_8BITMODE = 0x10,
+             LCD_4BITMODE = 0x00,
+             LCD_2LINE = 0x08,
+             LCD_1LINE = 0x00,
+             LCD_5x10DOTS = 0x04,
+             LCD_5x8DOTS = 0x00,
+            
+            -- flags for backlight control
+             LCD_BACKLIGHT = 0x08,
+             LCD_NOBACKLIGHT = 0x00,
+            
+             EN = 0x04,  -- Enable bit
+             RW = 0x02,  -- Read/Write bit
+             RS = 0x01,  -- Register select bit
+    
+             COMMAND = 0,
+             DATA = 1
+        }
+        -- commands
+        
 
         local id
         local sda
@@ -85,37 +88,37 @@ do
             send(value, 0)
         end
 
-        local function write(value) {
-            send(value, RS);
+        local function write(value)
+            send(value, RS)
             return 1
         end
 
         local function write4bits(value)
-            expanderWrite(value);
-            pulseEnable(value);
+            expanderWrite(value)
+            pulseEnable(value)
         end
 
 
         local function pulseEnable(data)
-            expanderWrite(bit.bor(data, EN))
+            expanderWrite(bit.bor(data, constants.EN))
             tmr.delay(1)
 
-            expanderWrite(bit.band(data, bit.bnot(EN)))
+            expanderWrite(bit.band(data, bit.bnot(constants.EN)))
             tmr.delay(50)
         end
 
         local function display()
-            displayControl =  bit.bor(displayControl, LCD_DISPLAYON)
-            command(bit.bor(LCD_DISPLAYCONTROL, displaycontrol)
+            displayControl =  bit.bor(displayControl, constants.LCD_DISPLAYON)
+            command(bit.bor(constants.LCD_DISPLAYCONTROL, displaycontrol))
         end
 
         local function clear()
-            command(LCD_CLEARDISPLAY)
+            command(constants.LCD_CLEARDISPLAY)
             delayMicroseconds(2000)
         end
 
         local function home()
-            command(LCD_RETURNHOME)
+            command(constants.LCD_RETURNHOME)
             delayMicroseconds(2000)
         end
 
@@ -131,11 +134,11 @@ do
             cols = givenColssNumber
             rows = givenRowsNumber            
 
-            displayFunction = bit.bor(LCD_4BITMODE, LCD_1LINE, LCD_5x8DOTS)
+            displayFunction = bit.bor(constants.LCD_4BITMODE, constants.LCD_1LINE, constants.LCD_5x8DOTS)
            
 
             if rows > 1 then
-                displayFunction = bit.bor(displayFunction, LCD_2LINE)
+                displayFunction = bit.bor(displayFunction, constants.LCD_2LINE)
             end
             numLines = rows
             
@@ -164,24 +167,24 @@ do
             tmr.delay(150);
    
             -- finally, set to 4-bit interface
-            write4bits(bit.lsihft(0x02, 4) 
+            write4bits(bit.lsihft(0x02, 4))
 
 
             -- set # lines, font size, etc.
-            command(bit.bor(LCD_FUNCTIONSET, displayfunction))
+            command(bit.bor(constants.LCD_FUNCTIONSET, displayfunction))
             
 
-            displayControl = bit.bor(LCD_DISPLAYON, LCD_CURSOROFF, LCD_BLINKOFF)
+            displayControl = bit.bor(constants.LCD_DISPLAYON, constants.LCD_CURSOROFF, constants.LCD_BLINKOFF)
             
             display()
 
             clear()
 
             --Initialize to default text direction (for roman languages)
-            displayMode = bit.bor(LCD_ENTRYLEFT, LCD_ENTRYSHIFTDECREMENT)
+            displayMode = bit.bor(constants.LCD_ENTRYLEFT, constants.LCD_ENTRYSHIFTDECREMENT)
 
             -- set the entry mode
-            command(bit.bor(LCD_ENTRYMODESET, displayMode)
+            command(bit.bor(constants.LCD_ENTRYMODESET, displayMode))
 
             home()
             
