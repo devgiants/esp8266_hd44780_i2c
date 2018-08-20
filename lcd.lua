@@ -1,56 +1,8 @@
 do
-    if(_G['i2c'] ~= nil) then
-        print('HD44780 : I2C here. continue.')
+    if(_G['i2c'] ~= nil) then        
+        local constants = dofile('constants.lua')
 
-        local constants = {
-             LCD_CLEARDISPLAY = 0x01,
-             LCD_RETURNHOME = 0x02,
-             LCD_ENTRYMODESET = 0x04,
-             LCD_DISPLAYCONTROL = 0x08,
-             LCD_CURSORSHIFT = 0x10,
-             LCD_FUNCTIONSET = 0x20,
-             LCD_SETCGRAMADDR = 0x40,
-             LCD_SETDDRAMADDR = 0x80,
-            
-            -- flags for display entry mode
-             LCD_ENTRYRIGHT = 0x00,
-             LCD_ENTRYLEFT = 0x02,
-             LCD_ENTRYSHIFTINCREMENT = 0x01,
-             LCD_ENTRYSHIFTDECREMENT = 0x00,
-            
-            -- flags for display on/off control
-             LCD_DISPLAYON = 0x04,
-             LCD_DISPLAYOFF = 0x00,
-             LCD_CURSORON = 0x02,
-             LCD_CURSOROFF = 0x00,
-             LCD_BLINKON = 0x01,
-             LCD_BLINKOFF = 0x00,
-            
-            -- flags for display/cursor shift
-             LCD_DISPLAYMOVE = 0x08,
-             LCD_CURSORMOVE = 0x00,
-             LCD_MOVERIGHT = 0x04,
-             LCD_MOVELEFT = 0x00,
-            
-            -- flags for function set
-             LCD_8BITMODE = 0x10,
-             LCD_4BITMODE = 0x00,
-             LCD_2LINE = 0x08,
-             LCD_1LINE = 0x00,
-             LCD_5x10DOTS = 0x04,
-             LCD_5x8DOTS = 0x00,
-            
-            -- flags for backlight control
-             LCD_BACKLIGHT = 0x08,
-             LCD_NOBACKLIGHT = 0x00,
-            
-             EN = 0x04,  -- Enable bit
-             RW = 0x02,  -- Read/Write bit
-             RS = 0x01,  -- Register select bit
-    
-             COMMAND = 0,
-             DATA = 1
-        }
+        print(constants.MODULE_NAME .. ': I2C here. continue.')
         -- commands
         
 
@@ -61,22 +13,39 @@ do
         local id
         local cols
         local rows
-        local backlight = LCD_NOBACKLIGHT
+        local backlight
 
         local displayFunction
         local displayControl
-        local displayMode;
-        local numLines;
+        local displayMode
+        local numLines
 
-        local function expanderWrite(data)
+        local function expanderWrite(data, backlight)
+            if(backlight == nil) then
+                backlight = constants.LCD_BACKLIGHT
+            end
             i2c.start(id)
-            i2c.address(id, address ,i2c.TRANSMITTER)
+            i2c.address(id, address ,i2c.TRANSMITTER)  
+            -- Force backlight on write so far         
             i2c.write(id, bit.bor(data, backlight))
             i2c.stop(id)
         end
 
-        -- write either command or data
+        local function pulseEnable(data)
+            expanderWrite(bit.bor(data, constants.EN))
+            tmr.delay(1)
+            expanderWrite(bit.band(data, bit.bnot(constants.EN)))
+            tmr.delay(50)
+        end                
+
+        local function write4bits(value)
+            expanderWrite(value)
+            pulseEnable(value)
+        end   
+
+        -- write either command or data on 4 bits mode
         local function send(value, mode)
+            print(value)
             local highNib = bit.band(value, 0xF0)
             local lowNib = bit.band(bit.lshift(value, 4), 0xF0)
 
@@ -89,37 +58,53 @@ do
         end
 
         local function write(value)
-            send(value, RS)
+            send(value, constants.RS)
             return 1
-        end
-
-        local function write4bits(value)
-            expanderWrite(value)
-            pulseEnable(value)
-        end
-
-
-        local function pulseEnable(data)
-            expanderWrite(bit.bor(data, constants.EN))
-            tmr.delay(1)
-
-            expanderWrite(bit.band(data, bit.bnot(constants.EN)))
-            tmr.delay(50)
-        end
+        end      
 
         local function display()
             displayControl =  bit.bor(displayControl, constants.LCD_DISPLAYON)
-            command(bit.bor(constants.LCD_DISPLAYCONTROL, displaycontrol))
+            command(bit.bor(constants.LCD_DISPLAYCONTROL, displayControl))
         end
 
         local function clear()
             command(constants.LCD_CLEARDISPLAY)
-            delayMicroseconds(2000)
+            tmr.delay(2000)
         end
 
         local function home()
             command(constants.LCD_RETURNHOME)
-            delayMicroseconds(2000)
+            tmr.delay(2000)
+        end
+
+        local function setCursor(col, row)
+            rowOffsets = { 0x00, 0x40, 0x14, 0x54 }
+
+            print(row .. ' ' .. col .. ' ' .. rows)
+            print(rowOffsets[row])                      
+            
+            command(bit.bor(constants.LCD_SETDDRAMADDR, (col + rowOffsets[row])))
+        end
+
+        local function printString(str)
+            for i = 1, #str do
+             local char = string.byte(string.sub(str, i, i))
+             print(char)
+             write(char)
+             --send ({ bit.clear(char,0,1,2,3),bit.lshift(bit.clear(char,4,5,6,7),4)})
+            end
+        end
+
+        -- Turn the (optional) backlight off/on
+        local function noBacklight()
+            backlight = constants.LCD_NOBACKLIGHT
+            expanderWrite(0, backlight)
+        end
+
+         -- Turn the (optional) backlight off/on
+        local function backlight()
+            backlight = constants.LCD_BACKLIGHT
+            expanderWrite(0, backlight)
         end
 
 
@@ -134,8 +119,8 @@ do
             cols = givenColssNumber
             rows = givenRowsNumber            
 
-            displayFunction = bit.bor(constants.LCD_4BITMODE, constants.LCD_1LINE, constants.LCD_5x8DOTS)
-           
+            displayFunction = bit.bor(constants.LCD_4BITMODE, constants.LCD_1LINE, constants.LCD_5x8DOTS)           
+            --print(constants.MODULE_NAME .. ': displayFunction value ' .. displayFunction)
 
             if rows > 1 then
                 displayFunction = bit.bor(displayFunction, constants.LCD_2LINE)
@@ -147,9 +132,11 @@ do
             
             -- Establishing connection
             local speed = i2c.setup(id, sda, scl, i2c.SLOW)
-            print('HD44780 : I2C setup (SDA : ' .. sda .. ', SCL : ' .. scl .. ', device at 0x' .. string.format('%x', address) .. ') at ' .. speed .. ' bit/s.')
+            print(constants.MODULE_NAME .. ': I2C setup (SDA : ' .. sda .. ', SCL : ' .. scl .. ', device at 0x' .. string.format('%x', address) .. ') at ' .. speed .. ' bit/s.')
 
-            expanderWrite(backlight)
+            backlight = constants.LCD_NOBACKLIGHT
+            print(backlight)
+           -- expanderWrite(backlight)
 
             -- What to do with that
             tmr.delay(1000000)
@@ -167,11 +154,11 @@ do
             tmr.delay(150);
    
             -- finally, set to 4-bit interface
-            write4bits(bit.lsihft(0x02, 4))
+            write4bits(bit.lshift(0x02, 4))
 
 
             -- set # lines, font size, etc.
-            command(bit.bor(constants.LCD_FUNCTIONSET, displayfunction))
+            command(bit.bor(constants.LCD_FUNCTIONSET, displayFunction))
             
 
             displayControl = bit.bor(constants.LCD_DISPLAYON, constants.LCD_CURSOROFF, constants.LCD_BLINKOFF)
@@ -192,9 +179,13 @@ do
       
         -- Define object
         hd44780 = {
-            init=init            
+            init=init,
+            noBacklight=noBacklight,          
+            backlight=backlight,
+            setCursor=setCursor,
+            printString=printString
         }
     else
-        print('HD44780 : I2C module is required to run this library. Please include it in your firmware.')
+        print(constants.MODULE_NAME .. ': I2C module is required to run this library. Please include it in your firmware.')
     end    
 end
